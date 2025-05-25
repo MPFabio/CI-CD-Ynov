@@ -1,0 +1,135 @@
+- name: Clone pause-clope-server repo
+  hosts: server
+  become: yes
+  vars:
+    repo_url: https://github.com/LaPauseClope/pause-clope-server.git
+    repo_branch: devops
+    repo_dest: /home/adminuser/app
+
+  tasks:
+    - name: Ensure directory exists with correct permissions
+      ansible.builtin.file:
+        path: "{{ repo_dest }}"
+        state: directory
+        owner: adminuser
+        group: adminuser
+        mode: '0755'
+        recurse: yes
+      ignore_errors: yes  # Continue même si des fichiers sont problématiques
+
+    - name: Remove existing directory if it exists
+      ansible.builtin.file:
+        path: "{{ repo_dest }}"
+        state: absent
+      # Utilise root (via become: yes) pour éviter les problèmes de permissions
+
+    - name: Recreate directory with correct permissions
+      ansible.builtin.file:
+        path: "{{ repo_dest }}"
+        state: directory
+        owner: adminuser
+        group: adminuser
+        mode: '0755'
+
+    - name: Clone the Git repo
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dest }}"
+        version: "{{ repo_branch }}"
+        force: yes
+      become_user: adminuser
+
+- name: Build app with Maven
+  hosts: server
+  become: yes
+  tasks:
+    - name: Install OpenJDK 21
+      ansible.builtin.apt:
+        name: openjdk-21-jdk
+        state: present
+        update_cache: yes
+
+    - name: Set JAVA_HOME environment variable
+      ansible.builtin.set_fact:
+        java_home_path: "{{ '/usr/lib/jvm/java-21-openjdk-amd64' if ansible_architecture == 'x86_64' else '/usr/lib/jvm/java-17-openjdk-arm64' }}"
+      when: ansible_architecture is defined
+
+    - name: Verify JAVA_HOME exists
+      ansible.builtin.stat:
+        path: "{{ java_home_path }}"
+      register: java_home_check
+      failed_when: not java_home_check.stat.exists
+      changed_when: false
+
+    - name: Make mvnw executable
+      ansible.builtin.file:
+        path: /home/adminuser/app/mvnw
+        mode: '0755'
+        owner: adminuser
+        group: adminuser
+
+    - name: Build the JAR with Maven
+      ansible.builtin.shell: ./mvnw clean package -DskipTests
+      args:
+        chdir: /home/adminuser/app
+      environment:
+        JAVA_HOME: "{{ java_home_path }}"
+
+- name: Install required Ansible collections
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Ensure community.docker is installed
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install community.docker --force
+
+- name: Configure Ubuntu server
+  hosts: server
+  become: yes
+  vars:
+    compose_dir: /home/adminuser/app
+
+  tasks:
+    - name: Ensure Docker is installed
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ensure docker cli-plugins directory exists
+      file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+        mode: '0755'
+
+    - name: Install Docker Compose v2 manually
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        mode: '0755'
+
+    - name: Check Docker Compose version
+      command: docker compose version
+
+    - name: Add adminuser to docker group
+      user:
+        name: adminuser
+        groups: docker
+        append: yes
+
+    - name: Create .env file from template
+      template:
+        src: env.j2
+        dest: "{{ compose_dir }}/.env"
+      become_user: adminuser
+      ignore_errors: yes
+
+    - name: Start services with Docker Compose (community module)
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"

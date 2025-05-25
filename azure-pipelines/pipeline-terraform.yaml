@@ -1,0 +1,161 @@
+trigger:
+- devops
+
+pool:
+  name: SelfHosted
+
+variables:
+- group: LaPauseClope
+- name: TF_ROOT
+  value: 'terraform'
+- name: ANSIBLE_PIPELINE_ID
+  value: '13'
+
+stages:
+- stage: TerraformPlan
+  displayName: 'Terraform Plan'
+  jobs:
+  - job: Plan
+    displayName: 'Run Terraform Plan'
+    steps:
+    - checkout: self
+
+    - powershell: terraform -version
+      displayName: 'Check Terraform Version'
+
+    - powershell: |
+        terraform init -backend-config="resource_group_name=$(ARM_RESOURCE_GROUP_NAME)" `
+                      -backend-config="storage_account_name=$(ARM_STORAGE_ACCOUNT_NAME)" `
+                      -backend-config="container_name=$(ARM_CONTAINER_NAME)" `
+                      -backend-config="key=terraform.tfstate" `
+                      -backend-config="access_key=$(ARM_ACCESS_KEY)"
+      workingDirectory: $(TF_ROOT)
+      displayName: 'Terraform Init'
+
+    - powershell: |
+        terraform plan -out=tfplan
+      workingDirectory: $(TF_ROOT)
+      displayName: 'Terraform Plan'
+      env:
+        TF_VAR_admin_password: $(ARM_VM_PASSWORD)
+        TF_VAR_backend_rg_name: $(ARM_RESOURCE_GROUP_NAME)
+        TF_VAR_backend_account_name: $(ARM_STORAGE_ACCOUNT_NAME)
+        TF_VAR_backend_container_name: $(ARM_CONTAINER_NAME)
+        TF_VAR_backend_access_key: $(ARM_ACCESS_KEY)
+        TF_VAR_subscription_id: $(ARM_AZURE_SUBSCRIPTION_ID)
+        TF_VAR_client_id: $(ARM_AZURE_CLIENT_ID)
+        TF_VAR_client_secret: $(ARM_AZURE_CLIENT_SECRET)
+        TF_VAR_tenant_id: $(ARM_AZURE_TENANT_ID)
+
+    - publish: $(TF_ROOT)/tfplan
+      artifact: tfplan
+
+- stage: TerraformApply
+  displayName: 'Terraform Apply'
+  dependsOn: TerraformPlan
+  condition: succeeded()
+  jobs:
+  - job: Apply
+    displayName: 'Run Terraform Apply'
+    steps:
+    - checkout: self
+
+    - download: current
+      artifact: tfplan
+
+    - powershell: |
+        terraform init -backend-config="resource_group_name=$(ARM_RESOURCE_GROUP_NAME)" `
+                      -backend-config="storage_account_name=$(ARM_STORAGE_ACCOUNT_NAME)" `
+                      -backend-config="container_name=$(ARM_CONTAINER_NAME)" `
+                      -backend-config="key=terraform.tfstate" `
+                      -backend-config="access_key=$(ARM_ACCESS_KEY)"
+      workingDirectory: $(TF_ROOT)
+      displayName: 'Terraform Init (Apply)'
+
+    - powershell: terraform apply -auto-approve "$env:PIPELINE_WORKSPACE\tfplan\tfplan"
+      workingDirectory: $(TF_ROOT)
+      displayName: 'Terraform Apply'
+      env:
+        TF_VAR_admin_password: $(ARM_VM_PASSWORD)
+        TF_VAR_backend_rg_name: $(ARM_RESOURCE_GROUP_NAME)
+        TF_VAR_backend_account_name: $(ARM_STORAGE_ACCOUNT_NAME)
+        TF_VAR_backend_container_name: $(ARM_CONTAINER_NAME)
+        TF_VAR_backend_access_key: $(ARM_ACCESS_KEY)
+        TF_VAR_subscription_id: $(ARM_AZURE_SUBSCRIPTION_ID)
+        TF_VAR_client_id: $(ARM_AZURE_CLIENT_ID)
+        TF_VAR_client_secret: $(ARM_AZURE_CLIENT_SECRET)
+        TF_VAR_tenant_id: $(ARM_TENANT_ID)
+
+
+    - powershell: |
+        terraform output -raw vm_public_ip > ip.txt
+        terraform output -raw ssh_private_key > ssh_private_key.txt
+      workingDirectory: $(TF_ROOT)
+      displayName: 'Extract Terraform Outputs'
+
+    - publish: $(TF_ROOT)/ip.txt
+      artifact: terraform-output
+
+    - publish: $(TF_ROOT)/ssh_private_key.txt
+      artifact: terraform-ssh-key
+
+- stage: ConfigureWithAnsible
+  displayName: 'Configure with Ansible'
+  dependsOn: TerraformApply
+  condition: succeeded()
+  jobs:
+  - job: AnsibleConfigure
+    displayName: 'Run Ansible Playbook'
+    steps:
+    - checkout: self
+
+    - download: current
+      artifact: terraform-output
+
+    - download: current
+      artifact: terraform-ssh-key
+
+    - powershell: |
+        $ip = Get-Content -Path "$(Pipeline.Workspace)\terraform-output\ip.txt"
+        $sshKeyRaw = Get-Content -Path "$(Pipeline.Workspace)\terraform-ssh-key\ssh_private_key.txt" -Raw
+        $localKeyPath = "$env:USERPROFILE\ansible_ssh_key"
+
+        [System.IO.File]::WriteAllText($localKeyPath, $sshKeyRaw, [System.Text.Encoding]::ASCII)
+
+        $wslKeyPath = "/root/ansible/ansible_ssh_key"
+        $wslInventoryPath = "/root/ansible/inventory"
+
+        wsl bash -c "mkdir -p /root/ansible"
+        wsl bash -c "cp /mnt/c/Users/fabio/ansible_ssh_key $wslKeyPath"
+        wsl bash -c "chmod 600 $wslKeyPath"
+
+        $inventoryContent = "[all]`nserver ansible_host=$ip ansible_user=adminuser ansible_ssh_private_key_file=$wslKeyPath ansible_python_interpreter=/usr/bin/python3"
+        Set-Content -Path "$(System.DefaultWorkingDirectory)\ansible_inventory" -Value $inventoryContent -Encoding ascii
+
+        $windowsInventory = "$(System.DefaultWorkingDirectory)\ansible_inventory"
+        $inventoryWSL = "/mnt/c" + $windowsInventory.Substring(2).Replace('\', '/')
+        wsl bash -c "cp '$inventoryWSL' '$wslInventoryPath'"
+
+        Write-Host "=== INVENTORY CONTENT ==="
+        wsl bash -c "cat /root/ansible/inventory"
+        Write-Host "========================="
+
+        Write-Host "Running ansible -m ping..."
+        $pingResult = wsl bash -c "ansible all -i /root/ansible/inventory -m ping -u adminuser --private-key $wslKeyPath"
+        Write-Host $pingResult
+
+        Write-Host "=== RUNNING PLAYBOOK ==="
+        $windowsPlaybookPath = "$(Build.SourcesDirectory)\deploy.yml"
+        $playbookPath = "/mnt/c" + $windowsPlaybookPath.Substring(2).Replace('\', '/')
+
+        $cmd = "ansible-playbook -i $wslInventoryPath $playbookPath --private-key $wslKeyPath -u adminuser"
+        $playbookResult = wsl bash -c "$cmd"
+        Write-Host $playbookResult
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Ansible playbook failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+        }
+      displayName: 'Prepare SSH Key and Run Ansible'
+      env:
+        ANSIBLE_HOST_KEY_CHECKING: False
