@@ -14,6 +14,40 @@ variables:
   value: 'frontend'
 
 stages:
+- stage: RunTests
+  displayName: 'Run Java Tests'
+  jobs:
+  - job: Test
+    displayName: 'Run Maven Tests'
+    steps:
+    - checkout: self
+
+    - powershell: |
+        # Ensure Maven and Java are in PATH
+        $env:PATH = "$env:PATH;C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.10\bin;C:\Program Files\Java\jdk-21\bin"
+        # Set JAVA_HOME for JDK 21
+        $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+        java -version
+        mvn -version
+      displayName: 'Check Java and Maven Versions'
+
+    - powershell: |
+        # Ensure Maven is in PATH
+        $env:PATH = "$env:PATH;C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.10\bin"
+        mvn clean verify -f "$(FRONTEND_ROOT)/pom.xml"
+      displayName: 'Run Maven Tests'
+      env:
+        JAVA_HOME: C:\Program Files\Java\jdk-21
+      continueOnError: false
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        failTaskOnFailedTests: true
+      displayName: 'Publish Test Results'
+      condition: succeededOrFailed()
+
 - stage: TerraformPlan
   displayName: 'Terraform Plan'
   jobs:
