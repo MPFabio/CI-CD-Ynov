@@ -10,8 +10,6 @@ variables:
   value: 'terraform'
 - name: ANSIBLE_PIPELINE_ID
   value: '13'
-- name: FRONTEND_ROOT
-  value: 'frontend'
 
 stages:
 - stage: RunTests
@@ -34,7 +32,7 @@ stages:
     - powershell: |
         # Ensure Maven is in PATH
         $env:PATH = "$env:PATH;C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.10\bin"
-        mvn clean verify -f "$(FRONTEND_ROOT)/pom.xml"
+        mvn clean verify -f "pom.xml"
       displayName: 'Run Maven Tests'
       env:
         JAVA_HOME: C:\Program Files\Java\jdk-21
