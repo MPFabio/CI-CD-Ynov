@@ -92,3 +92,25 @@ resource "azurerm_subnet_network_security_group_association" "lapauseclope" {
   subnet_id                 = azurerm_subnet.lapauseclope.id
   network_security_group_id = azurerm_network_security_group.lapauseclope.id
 }
+
+
+resource "azurerm_app_service_plan" "lapauseclope" {
+  name                = "plan-frontend-lapauseclope"
+  location            = data.azurerm_resource_group.lapauseclope.location
+  resource_group_name = data.azurerm_resource_group.lapauseclope.name
+  sku {
+    tier = "Free"
+    size = "F1"
+  }
+}
+
+resource "azurerm_app_service" "lapauseclope" {
+  name                = "PauseClopeApp"
+  location            = data.azurerm_resource_group.lapauseclope.location
+  resource_group_name = data.azurerm_resource_group.lapauseclope.name
+  app_service_plan_id = azurerm_app_service_plan.lapauseclope.id
+
+  site_config {
+    always_on = false
+  }
+}

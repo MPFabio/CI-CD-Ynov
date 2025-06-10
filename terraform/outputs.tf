@@ -10,3 +10,7 @@ output "ssh_public_key" {
 output "vm_public_ip" {
   value = azurerm_public_ip.lapauseclope.ip_address
 }
+
+output "app_service_name" {
+  value = azurerm_app_service.lapauseclope.name
+}
