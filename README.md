@@ -1,5 +1,5 @@
 [![Spring Test](https://github.com/LaPauseClope/pause-clope-server/actions/workflows/maven.yml/badge.svg)](https://github.com/LaPauseClope/pause-clope-server/actions/workflows/maven.yml)
-[![Latest Release](https://img.shields.io/github/v/release/LaPauseClope/pause-clope-server)](https://github.com/LaPauseClope/pause-clope-server/releases)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/MPFabio/CI-CD-Ynov)
 
 ## Présentation
 Ceci est un projet API Java Spring Boot avec un frontend HTML simple et une base de données PostgreSQL. Il s’inscrit dans une démarche d’industrialisation DevOps avec un pipeline CI/CD complet sous Azure DevOps. L’infrastructure est déployée sur Azure à l’aide de Terraform et configurée avec Ansible. Le frontend HTML sert également à tester un scénario de release/rollback.
