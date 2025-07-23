@@ -106,19 +106,22 @@ Le projet est surveillé via **Azure Monitor**, avec métriques visibles dans l�
 
 Une alerte est configurée dans un Azure Monitor Action Group, notifiant l'équipe en cas de dépassement de seuil critique.
 
-
-
 ## Rollback
 
-Le projet propose un mécanisme de rollback **manuel et simulé** :
+Le fichier `frontend/index.html` contient un message différencié par version.  
+Cela permet de **visualiser le rollback** après un déploiement.
 
-- Le fichier `frontend/index.html` contient un message différencié selon la version, permettant de visualiser un changement après déploiement.
-- Un retour arrière peut être effectué en :
-  - Faisant un `git checkout` vers un commit ou un tag antérieur
-  - Rebuildant le projet (`./mvnw package`)
-  - Re-déployant la version précédente via le playbook Ansible (`deploy.yml`)
+Exemple :
 
-Ce mécanisme illustre un cas typique de rollback basé sur versioning Git + déploiement contrôlé.
+- Version 1 : “Ceci est une page de test pour la release et le rollback”
+- Version 2 : “Version modifiée pour simuler un rollback”
+- Rollback → Version 1 réaffichée
+
+Le retour arrière est réalisé manuellement via :
+
+- `git checkout` d’un ancien tag
+- Rebuild Maven (`./mvnw package`)
+- Redeploiement avec `deploy.yml`
 
 
 ## Sécurité
