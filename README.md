@@ -134,5 +134,16 @@ Le retour arrière est réalisé manuellement via :
 
 
 <img width="821" height="246" alt="1 PipelineBack" src="https://github.com/user-attachments/assets/75dba2ba-c4d2-4859-bc66-b5033947fa29" />
-<img width="821" height="691" alt="untitled" src="https://github.com/user-attachments/assets/9430fcb9-85be-4d65-9eed-9e055b192143" />
+<img width="821" height="691" alt="untitled" src="https://github.com/user-attachments/assets/599a6c44-5277-4f62-b96d-4105711a5c88" />
 <img width="821" height="417" alt="12 Monitor" src="https://github.com/user-attachments/assets/77c540ed-3b84-4e6b-8803-eb93ac5438b2" />
+
+
+
+
+
+
+
+
+
+
+
