@@ -1,97 +1,122 @@
-# La pause clope
-
 [![Spring Test](https://github.com/LaPauseClope/pause-clope-server/actions/workflows/maven.yml/badge.svg)](https://github.com/LaPauseClope/pause-clope-server/actions/workflows/maven.yml)
 [![Latest Release](https://img.shields.io/github/v/release/LaPauseClope/pause-clope-server)](https://github.com/LaPauseClope/pause-clope-server/releases)
 
-Link to main [documentation](https://www.youtube.com/watch?v=dQw4w9WgXcQ).
-A simple Spring Boot application that simulates a Cookie Clicker game, with PostgreSQL integration.
+## Présentation
+
+Pause Clope est un projet API Java Spring Boot avec un frontend HTML simple et une base de données PostgreSQL. Il s’inscrit dans une démarche d’industrialisation DevOps avec un pipeline CI/CD complet sous Azure DevOps. L’infrastructure est déployée sur Azure à l’aide de Terraform et configurée avec Ansible. Le frontend HTML sert également à tester un scénario de release/rollback.
 
 ---
 
-## 🛠️ Development Environment Setup
+## Objectifs
 
-### 🔧 Prerequisites
-
-- Java 21 (Open jdk)
-- Maven
-- IntelliJ IDEA (recommended)
-- PostgreSQL (can be run using Docker)
-
----
-
-## 🐳 PostgreSQL Setup with Docker
-
-Run the following command to start a PostgreSQL container:
-
-```bash
-docker run --name postgres-container \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=cookieclicker \
-  -p 5432:5432 \
-  -d postgres
-```
-
-----
-To stop and remove the container:
-
-```bash
-docker stop postgres-container
-docker rm postgres-container
-```
-
-## ⚙️ Application Configuration
-
-Edit your application.yaml in src/main/resources:
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/cookieclicker
-    username: postgres
-    password: password
-  jpa:
-    hibernate:
-      ddl-auto: update
-      show-sql: true
-  profiles:
-    active: dev
-
-  server:
-    port: 8080
-```
-
-Change active profile depending on configuration
+- Conteneurisation de l’application backend (Spring Boot)
+- Déploiement avec Docker Compose
+- Provisionnement automatique d’une VM Azure avec Terraform
+- Configuration automatique via Ansible
+- Mise en place d’un pipeline Azure DevOps CI/CD avec :
+  - Tests automatiques Maven
+  - Plan et Apply Terraform
+  - Déploiement avec Ansible
+- Simulation d’un rollback avec version frontend différente
 
 ---
 
-## 🧱 Build and Run the App
+## Stack technique
 
-### 🔨 Build with Maven
+| Composant     | Technologie                       |
+|---------------|-----------------------------------|
+| Backend       | Java 21, Spring Boot 3.4.4        |
+| Base de données | PostgreSQL (via Docker)         |
+| Frontend      | HTML statique                     |
+| CI/CD         | Azure DevOps                      |
+| Provisionnement | Terraform                       |
+| Configuration serveur | Ansible                   |
+| Conteneurisation | Docker, Docker Compose         |
 
-```bash
-./mvnw clean install
-```
-
-▶️ Run with Spring Boot
-
-```bash
-./mvnw spring-boot:run
-```
-
-Or directly with the jar:
-
-```bash
-java -jar target/cookie-clicker-0.0.1-SNAPSHOT.jar
-```
-
-```bash
-./mvnw test
-```
 
 ---
 
-## Postman testing
+## Lancer l’application en local
 
-Link : [click here](https://app.getpostman.com/join-team?invite_code=8cbac6d126d4553a0384e4f33e19a25b964669e660f47611d5235e16fc5ea495&target_code=a3f18daaa9304aef43bcea35df2fe791)
-Edit variables in "Environment" space in postman to match with your configuration
+### Prérequis
+- Docker + Docker Compose
+
+### Commandes
+
+```bash
+docker-compose up --build
+
+Accès :
+
+    API Spring Boot : http://localhost:8080
+
+    Base PostgreSQL : localhost:5432 (user: postgres / password: password)
+
+Tests
+
+Le projet inclut des tests unitaires d’API à l’aide de **Spring Boot Test** et **MockMvc**.  
+Ils valident notamment le bon fonctionnement du contrôleur `ClickerController` :
+
+- Vérification du `POST /clicker/{nickname}` avec payload JSON
+- Vérification du `GET /clicker/{nickname}` si l’utilisateur existe
+- Gestion du cas où l’utilisateur est introuvable (`404`)
+
+Ces tests sont exécutés automatiquement dans la pipeline Azure DevOps via :
+
+mvn clean verify
+
+Le pipeline principal azure-pipelines.yml comporte les étapes suivantes :
+
+    Terraform Plan
+
+        Vérifie Java et Maven
+
+        Exécute les tests
+
+        Publie les résultats JUnit
+
+        Initialise Terraform
+
+        Affiche le Plan
+
+    Terraform Apply
+
+        Crée une VM Azure Ubuntu avec réseau privé, IP publique, sécurité SSH
+
+    Configuration avec Ansible
+
+        Transfert dynamique de la clé SSH et IP via artefacts
+
+        Exécution du playbook deploy.yml depuis WSL
+
+        Installe Docker, Docker Compose et lance l’application sur la VM
+
+
+
+
+Les variables sensibles (identifiants Azure, mot de passe VM...) sont gérées via un groupe de variables sécurisé
+
+Rollback
+
+Le projet propose un mécanisme de rollback **manuel et simulé** :
+
+- Le fichier `frontend/index.html` contient un message différencié selon la version, permettant de visualiser un changement après déploiement.
+- Un retour arrière peut être effectué en :
+  - Faisant un `git checkout` vers un commit ou un tag antérieur
+  - Rebuildant le projet (`./mvnw package`)
+  - Re-déployant la version précédente via le playbook Ansible (`deploy.yml`)
+
+Ce mécanisme illustre un cas typique de rollback basé sur versioning Git + déploiement contrôlé.
+
+
+Sécurité
+
+    Connexion à la VM via clé SSH RSA (générée par Terraform)
+
+    Variables sensibles stockées de manière sécurisée dans Azure DevOps
+
+    L’utilisateur adminuser est utilisé sans accès root direct
+
+```
+
+<img width="407" height="123" alt="1 PipelineBack" src="https://github.com/user-attachments/assets/75dba2ba-c4d2-4859-bc66-b5033947fa29" />
