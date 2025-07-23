@@ -44,6 +44,7 @@ Ceci est un projet API Java Spring Boot avec un frontend HTML simple et une base
 
 ```bash
 docker-compose up --build
+```
 
 Accès :
 
@@ -51,7 +52,7 @@ Accès :
 
     Base PostgreSQL : localhost:5432 (user: postgres / password: password)
 
-Tests
+## Tests
 
 Le projet inclut des tests unitaires d’API à l’aide de **Spring Boot Test** et **MockMvc**.  
 Ils valident notamment le bon fonctionnement du contrôleur `ClickerController` :
@@ -95,7 +96,19 @@ Le pipeline principal azure-pipelines.yml comporte les étapes suivantes :
 
 Les variables sensibles (identifiants Azure, mot de passe VM...) sont gérées via un groupe de variables sécurisé
 
-Rollback
+## Monitoring & Alertes – Azure Monitor
+
+Le projet est surveillé via **Azure Monitor**, avec métriques visibles dans l’interface Insights :
+
+- Usage CPU, mémoire, trafic réseau
+- Collecte en temps réel via agent AMA
+- Stockage dans un Log Analytics Workspace
+
+Une alerte est configurée dans un Azure Monitor Action Group, notifiant l'équipe en cas de dépassement de seuil critique.
+
+
+
+## Rollback
 
 Le projet propose un mécanisme de rollback **manuel et simulé** :
 
@@ -108,7 +121,7 @@ Le projet propose un mécanisme de rollback **manuel et simulé** :
 Ce mécanisme illustre un cas typique de rollback basé sur versioning Git + déploiement contrôlé.
 
 
-Sécurité
+## Sécurité
 
     Connexion à la VM via clé SSH RSA (générée par Terraform)
 
@@ -116,6 +129,7 @@ Sécurité
 
     L’utilisateur adminuser est utilisé sans accès root direct
 
-```
 
-<img width="407" height="123" alt="1 PipelineBack" src="https://github.com/user-attachments/assets/75dba2ba-c4d2-4859-bc66-b5033947fa29" />
+<img width="821" height="246" alt="1 PipelineBack" src="https://github.com/user-attachments/assets/75dba2ba-c4d2-4859-bc66-b5033947fa29" />
+<img width="821" height="691" alt="untitled" src="https://github.com/user-attachments/assets/9430fcb9-85be-4d65-9eed-9e055b192143" />
+<img width="821" height="417" alt="12 Monitor" src="https://github.com/user-attachments/assets/77c540ed-3b84-4e6b-8803-eb93ac5438b2" />
